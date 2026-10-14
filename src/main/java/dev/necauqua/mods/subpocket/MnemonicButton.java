@@ -1,15 +1,15 @@
 package dev.necauqua.mods.subpocket;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import dev.necauqua.mods.subpocket.config.IMnenonic;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
+import net.neoforged.neoforge.common.ModConfigSpec.ConfigValue;
 
 import java.util.function.BooleanSupplier;
 
@@ -19,6 +19,7 @@ public final class MnemonicButton<M extends IMnenonic<M>> implements GuiEventLis
     private final ConfigValue<M> value;
 
     private boolean isHovered = false;
+    private boolean focused = false;
     private int x, y;
 
     private final Minecraft mc = Minecraft.getInstance();
@@ -39,12 +40,12 @@ public final class MnemonicButton<M extends IMnenonic<M>> implements GuiEventLis
     }
 
     @Override
-    public void render(PoseStack poseStack, int mx, int my, float partialTicks) {
+    public void render(GuiGraphics graphics, int mx, int my, float partialTicks) {
         if (!enabled.getAsBoolean()) {
             return;
         }
         isHovered = isMouseOver(mx, my);
-        mc.font.draw(poseStack, value.get().mnemonic(), x, y, isHovered ? 0x404040 : 0);
+        graphics.drawString(mc.font, value.get().mnemonic(), x, y, isHovered ? 0x404040 : 0, false);
     }
 
     @Override
@@ -69,6 +70,16 @@ public final class MnemonicButton<M extends IMnenonic<M>> implements GuiEventLis
     @Override
     public NarrationPriority narrationPriority() {
         return isHovered ? NarratableEntry.NarrationPriority.HOVERED : NarratableEntry.NarrationPriority.NONE;
+    }
+
+    @Override
+    public void setFocused(boolean focused) {
+        this.focused = focused;
+    }
+
+    @Override
+    public boolean isFocused() {
+        return focused;
     }
 
     @Override

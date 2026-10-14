@@ -5,89 +5,92 @@
 
 package dev.necauqua.mods.subpocket;
 
-import io.netty.buffer.Unpooled;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
-import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.loading.JarVersionLookupHandler;
-import net.minecraftforge.network.NetworkEvent.ClientCustomPayloadEvent;
-import net.minecraftforge.network.NetworkEvent.ServerCustomPayloadEvent;
-import net.minecraftforge.network.NetworkRegistry;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.EventBusSubscriber.Bus;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.apache.logging.log4j.LogManager;
 
 import javax.annotation.Nullable;
 
 import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static dev.necauqua.mods.subpocket.Subpocket.ns;
 
 @EventBusSubscriber(modid = MODID, bus = Bus.MOD)
 public final class Network {
 
-    private static final ResourceLocation CHANNEL = ns("channel");
+    public record SyncStoragePayload(CompoundTag nbt) implements CustomPacketPayload {
+        public static final Type<SyncStoragePayload> TYPE = new Type<>(Subpocket.ns("sync_storage"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, SyncStoragePayload> STREAM_CODEC =
+            StreamCodec.composite(
+                ByteBufCodecs.COMPOUND_TAG,
+                SyncStoragePayload::nbt,
+                SyncStoragePayload::new
+            );
 
-    @SubscribeEvent
-    public static void on(FMLCommonSetupEvent e) {
-        var version = JarVersionLookupHandler.getImplementationVersion(Subpocket.class).orElse("DEBUG");
-        NetworkRegistry.ChannelBuilder
-            .named(CHANNEL)
-            .clientAcceptedVersions(version::equals)
-            .serverAcceptedVersions(version::equals)
-            .networkProtocolVersion(() -> version)
-            .eventNetworkChannel()
-            .registerObject(Handlers.class);
-    }
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
 
-    // need to be in separate class because of some weird Forge check
-    private static final class Handlers {
-
-        @SubscribeEvent
-        @OnlyIn(Dist.CLIENT)
-        public static void on(ServerCustomPayloadEvent e) {
-            var nbt = e.getPayload().readNbt();
-            var ctx = e.getSource().get();
-            ctx.enqueueWork(() -> {
-                var player = Minecraft.getInstance().player;
+        public static void handle(SyncStoragePayload payload, IPayloadContext context) {
+            context.enqueueWork(() -> {
+                var player = context.player();
                 if (player != null) {
-                    SubpocketCapability.get(player).deserializeNBT(nbt);
+                    SubpocketCapability.get(player).deserializeNBT(player.registryAccess(), payload.nbt());
                 } else {
                     LogManager.getLogger(Subpocket.class).warn("Clientside player was null on sync!");
                 }
             });
-            ctx.setPacketHandled(true);
+        }
+    }
+
+    public record ClickActionPayload(float x, float y, int index, byte clickState) implements CustomPacketPayload {
+        public static final Type<ClickActionPayload> TYPE = new Type<>(Subpocket.ns("click_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ClickActionPayload> STREAM_CODEC =
+            StreamCodec.composite(
+                ByteBufCodecs.FLOAT, ClickActionPayload::x,
+                ByteBufCodecs.FLOAT, ClickActionPayload::y,
+                ByteBufCodecs.VAR_INT, ClickActionPayload::index,
+                ByteBufCodecs.BYTE, ClickActionPayload::clickState,
+                ClickActionPayload::new
+            );
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
         }
 
-        @SubscribeEvent
-        public static void on(ClientCustomPayloadEvent e) {
-            var payload = e.getPayload();
-            var ctx = e.getSource().get();
-            var player = ctx.getSender();
-            if (player == null) {
-                return;
-            }
-            if (!(player.containerMenu instanceof SubpocketContainer container)) {
-                return;
-            }
-            var x = payload.readFloat();
-            var y = payload.readFloat();
-            var index = payload.readInt();
-            var b = payload.readByte();
-            if (b == 0) {
-                ctx.enqueueWork(() -> container.stackMoved(x, y, index));
-            } else {
-                ctx.enqueueWork(() -> container.processClick(x, y, new ClickState(b), index));
-            }
-            ctx.setPacketHandled(true);
+        public static void handle(ClickActionPayload payload, IPayloadContext context) {
+            context.enqueueWork(() -> {
+                var player = context.player();
+                if (player != null && player.containerMenu instanceof SubpocketContainer container) {
+                    if (payload.clickState() == 0) {
+                        container.stackMoved(payload.x(), payload.y(), payload.index());
+                    } else {
+                        container.processClick(payload.x(), payload.y(), new ClickState(payload.clickState()), payload.index());
+                    }
+                }
+            });
         }
+    }
+
+    @SubscribeEvent
+    public static void on(RegisterPayloadHandlersEvent e) {
+        var registrar = e.registrar("1.0.0");
+        registrar.playToClient(SyncStoragePayload.TYPE, SyncStoragePayload.STREAM_CODEC, SyncStoragePayload::handle);
+        registrar.playToServer(ClickActionPayload.TYPE, ClickActionPayload.STREAM_CODEC, ClickActionPayload::handle);
     }
 
     public static void syncToClient(Player player) {
@@ -97,22 +100,12 @@ public final class Network {
     }
 
     public static void syncToClient(ServerPlayer player) {
-        var payload = new FriendlyByteBuf(Unpooled.buffer());
-        payload.writeNbt(SubpocketCapability.get(player).serializeNBT());
-        player.connection.send(new ClientboundCustomPayloadPacket(CHANNEL, payload));
+        var nbt = SubpocketCapability.get(player).serializeNBT(player.registryAccess());
+        PacketDistributor.sendToPlayer(player, new SyncStoragePayload(nbt));
     }
 
     @OnlyIn(Dist.CLIENT)
     public static void sendClickToServer(float x, float y, int index, @Nullable ClickState state) {
-        var payload = new FriendlyByteBuf(Unpooled.buffer());
-        payload.writeFloat(x);
-        payload.writeFloat(y);
-        payload.writeInt(index);
-        payload.writeByte(state != null ? state.toByte() : 0);
-        var connection = Minecraft.getInstance().getConnection();
-        if (connection == null) {
-            throw new IllegalStateException("No client-to-server connection");
-        }
-        connection.send(new ServerboundCustomPayloadPacket(CHANNEL, payload));
+        PacketDistributor.sendToServer(new ClickActionPayload(x, y, index, state != null ? state.toByte() : 0));
     }
 }

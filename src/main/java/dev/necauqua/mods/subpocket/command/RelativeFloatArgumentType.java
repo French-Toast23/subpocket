@@ -12,26 +12,10 @@ import net.minecraft.commands.synchronization.ArgumentTypeInfo;
 import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.commands.synchronization.ArgumentUtils;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegisterEvent;
-
 import java.util.concurrent.CompletableFuture;
 
-import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static dev.necauqua.mods.subpocket.Subpocket.ns;
-
-@EventBusSubscriber(modid = MODID, bus = Bus.MOD)
 public record RelativeFloatArgumentType(float minimum,
                                         float maximum) implements ArgumentType<RelativeFloatArgumentType.RelativeFloat>, ArgumentTypeInfo.Template<RelativeFloatArgumentType> {
-
-    @SubscribeEvent
-    public static void on(RegisterEvent e) {
-        e.register(ForgeRegistries.Keys.COMMAND_ARGUMENT_TYPES, ns("rel_float"), () -> RelativeFloatArgumentTypeInfo.INSTANCE);
-        ArgumentTypeInfos.registerByClass(RelativeFloatArgumentType.class, RelativeFloatArgumentTypeInfo.INSTANCE);
-    }
 
     public static RelativeFloatArgumentType relativeFloat() {
         return relativeFloat(Float.MIN_VALUE);
@@ -123,7 +107,7 @@ public record RelativeFloatArgumentType(float minimum,
         }
     }
 
-    private static final class RelativeFloatArgumentTypeInfo implements ArgumentTypeInfo<RelativeFloatArgumentType, RelativeFloatArgumentType> {
+    public static final class RelativeFloatArgumentTypeInfo implements ArgumentTypeInfo<RelativeFloatArgumentType, RelativeFloatArgumentType> {
 
         public static final RelativeFloatArgumentTypeInfo INSTANCE = new RelativeFloatArgumentTypeInfo();
 

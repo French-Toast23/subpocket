@@ -5,12 +5,14 @@
 
 package dev.necauqua.mods.subpocket.api;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ICapabilitySerializable;
+import net.neoforged.neoforge.common.util.INBTSerializable;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -18,22 +20,22 @@ import java.util.List;
  * You should either work in a context where equivalent code is executed on both sides
  * (which is still desync-prone) or work on the server side and use the {@link ISubpocketAPI#syncToClient(ServerPlayer)}
  * API.
- * <p>
- * Example usage:
- * <pre>
- * public static final Capability&lt;ISubpocket&gt; SUBPOCKET_CAPABILITY = CapabilityManager.get(new CapabilityToken&lt;&gt;(){});
- *
- * void method(Player player) {
- *     if (SUBPOCKET_CAPABILITY != null) { // if the mod was loaded
- *         player.getCapability(SUBPOCKET_CAPABILITY)
- *             .ifPresent(storage -&gt; { // should always be present, but we're safe
- *                 doStuffWith(storage);
- *             });
- *     }
- * }
- * </pre>
  **/
-public interface ISubpocket extends ICapabilitySerializable<CompoundTag>, Iterable<ISubpocketStack> {
+public interface ISubpocket extends INBTSerializable<CompoundTag>, Iterable<ISubpocketStack> {
+
+    @Override
+    CompoundTag serializeNBT(HolderLookup.Provider provider);
+
+    @Override
+    void deserializeNBT(HolderLookup.Provider provider, CompoundTag nbt);
+
+    default CompoundTag serializeNBT() {
+        return serializeNBT(null);
+    }
+
+    default void deserializeNBT(CompoundTag nbt) {
+        deserializeNBT(null, nbt);
+    }
 
     /**
      * Returns the state of the players subpocket.

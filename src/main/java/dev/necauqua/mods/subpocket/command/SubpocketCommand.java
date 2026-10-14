@@ -16,13 +16,14 @@ import dev.necauqua.mods.subpocket.impl.SubpocketStackFactoryImpl;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 import javax.annotation.Nullable;
 import java.math.BigInteger;
@@ -138,11 +139,11 @@ public final class SubpocketCommand {
     private static LiteralArgumentBuilder<CommandSourceStack> help(CommandBuildContext ctx) {
         return literal("help")
             .executes(context -> {
-                context.getSource().sendSuccess(helpCommandTitle(literal("help")), true);
-                context.getSource().sendSuccess(Component.translatable("command.subpocket:help.desc"), true);
+                context.getSource().sendSuccess(() -> helpCommandTitle(literal("help")), true);
+                context.getSource().sendSuccess(() -> Component.translatable("command.subpocket:help.desc"), true);
                 for (var subcommand : subcommands(ctx)) {
-                    context.getSource().sendSuccess(helpCommandTitle(subcommand), true);
-                    context.getSource().sendSuccess(Component.translatable("command.subpocket:" + subcommand.getLiteral() + ".desc"), true);
+                    context.getSource().sendSuccess(() -> helpCommandTitle(subcommand), true);
+                    context.getSource().sendSuccess(() -> Component.translatable("command.subpocket:" + subcommand.getLiteral() + ".desc"), true);
                 }
                 return 1;
             })
@@ -155,9 +156,12 @@ public final class SubpocketCommand {
                         var number = BigInteger.valueOf(ThreadLocalRandom.current().nextInt(9999) + 1);
                         storage.add(SubpocketStackFactoryImpl.INSTANCE.create(ref, number));
                     };
-                    CreativeModeTabs.BUILDING_BLOCKS.getDisplayItems().forEach(action);
-                    CreativeModeTabs.INGREDIENTS.getDisplayItems().forEach(action);
-                    CreativeModeTabs.TOOLS_AND_UTILITIES.getDisplayItems().forEach(action);
+                    var buildingBlocks = BuiltInRegistries.CREATIVE_MODE_TAB.get(CreativeModeTabs.BUILDING_BLOCKS);
+                    if (buildingBlocks != null) buildingBlocks.getDisplayItems().forEach(action);
+                    var ingredients = BuiltInRegistries.CREATIVE_MODE_TAB.get(CreativeModeTabs.INGREDIENTS);
+                    if (ingredients != null) ingredients.getDisplayItems().forEach(action);
+                    var tools = BuiltInRegistries.CREATIVE_MODE_TAB.get(CreativeModeTabs.TOOLS_AND_UTILITIES);
+                    if (tools != null) tools.getDisplayItems().forEach(action);
 
                     Network.syncToClient(player);
                     return 1;
@@ -180,7 +184,7 @@ public final class SubpocketCommand {
         subcommands.forEach(subcommand ->
             help.then(literal(subcommand.getLiteral())
                 .executes(context -> {
-                    context.getSource().sendSuccess(Component.translatable("command.subpocket:" + subcommand.getLiteral() + ".desc"), true);
+                    context.getSource().sendSuccess(() -> Component.translatable("command.subpocket:" + subcommand.getLiteral() + ".desc"), true);
                     return 1;
                 })));
 
@@ -197,7 +201,7 @@ public final class SubpocketCommand {
         for (var player : players) {
             SubpocketCapability.get(player).add(stack);
             Network.syncToClient(player);
-            src.sendSuccess(Component.translatable("command.subpocket:add.success", stack.getRef().getDisplayName(), count.toString(), player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:add.success", stack.getRef().getDisplayName(), count.toString(), player.getDisplayName()), true);
         }
         return players.size();
     }
@@ -234,7 +238,7 @@ public final class SubpocketCommand {
                 }
             }
             if (toRemove.isEmpty()) {
-                src.sendSuccess(Component.translatable("command.subpocket:remove.failure", player.getDisplayName(), ref.getDisplayName()), true);
+                src.sendSuccess(() -> Component.translatable("command.subpocket:remove.failure", player.getDisplayName(), ref.getDisplayName()), true);
                 continue;
             }
             toRemove.forEach(storage::remove);
@@ -242,7 +246,7 @@ public final class SubpocketCommand {
             var removed = toRemove.stream()
                 .map(ISubpocketStack::getCount)
                 .reduce(BigInteger.ZERO, BigInteger::add);
-            src.sendSuccess(Component.translatable("command.subpocket:remove.success", removed, player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:remove.success", removed, player.getDisplayName()), true);
             result++;
         }
         return result;
@@ -252,7 +256,7 @@ public final class SubpocketCommand {
         for (var player : players) {
             SubpocketCapability.get(player).clear();
             Network.syncToClient(player);
-            src.sendSuccess(Component.translatable("command.subpocket:clear.success", player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:clear.success", player.getDisplayName()), true);
         }
         return players.size();
     }
@@ -265,17 +269,17 @@ public final class SubpocketCommand {
 
             for (var stack : storage) {
                 var copy = stack.getRef();
-                if (copy.getItem() == ref.getItem() && (ref.getTag() == null || Objects.equals(ref.getTag(), copy.getTag()))) {
+                if (copy.getItem() == ref.getItem() && ItemStack.isSameItemSameComponents(ref, copy)) {
                     stack.setPos(x.get(stack.getX()), y.get(stack.getY()));
                     toElevate.add(stack);
 
-                    src.sendSuccess(Component.translatable("command.subpocket:move.success", copy.getDisplayName(), player.getDisplayName()), true);
+                    src.sendSuccess(() -> Component.translatable("command.subpocket:move.success", copy.getDisplayName(), player.getDisplayName()), true);
                 }
             }
             toElevate.forEach(storage::elevate);
 
             if (toElevate.isEmpty()) {
-                src.sendSuccess(Component.translatable("command.subpocket:move.failure", player.getDisplayName(), ref.getDisplayName()), true);
+                src.sendSuccess(() -> Component.translatable("command.subpocket:move.failure", player.getDisplayName(), ref.getDisplayName()), true);
             } else {
                 Network.syncToClient(player);
             }
@@ -288,12 +292,12 @@ public final class SubpocketCommand {
         for (var player : players) {
             var storage = SubpocketCapability.get(player);
             if (storage.isUnlocked()) {
-                src.sendSuccess(Component.translatable("command.subpocket:unlock.failure", player.getDisplayName()), true);
+                src.sendSuccess(() -> Component.translatable("command.subpocket:unlock.failure", player.getDisplayName()), true);
                 continue;
             }
             storage.unlock();
             Network.syncToClient(player);
-            src.sendSuccess(Component.translatable("command.subpocket:unlock.success", player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:unlock.success", player.getDisplayName()), true);
             result++;
         }
         return result;
@@ -304,12 +308,12 @@ public final class SubpocketCommand {
         for (var player : players) {
             var storage = SubpocketCapability.get(player);
             if (!storage.isUnlocked()) {
-                src.sendSuccess(Component.translatable("command.subpocket:lock.failure", player.getDisplayName()), true);
+                src.sendSuccess(() -> Component.translatable("command.subpocket:lock.failure", player.getDisplayName()), true);
                 continue;
             }
             storage.lock();
             Network.syncToClient(player);
-            src.sendSuccess(Component.translatable("command.subpocket:lock.success", player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:lock.success", player.getDisplayName()), true);
             result++;
         }
         return result;
@@ -319,11 +323,11 @@ public final class SubpocketCommand {
         var result = 0;
         for (var player : players) {
             if (!force && !SubpocketCapability.get(player).isUnlocked()) {
-                src.sendSuccess(Component.translatable("command.subpocket:open.failure", player.getDisplayName()), true);
+                src.sendSuccess(() -> Component.translatable("command.subpocket:open.failure", player.getDisplayName()), true);
                 continue;
             }
             player.openMenu(SubspatialKeyItem.INSTANCE.get());
-            src.sendSuccess(Component.translatable("command.subpocket:open.success", player.getDisplayName()), true);
+            src.sendSuccess(() -> Component.translatable("command.subpocket:open.success", player.getDisplayName()), true);
             result++;
         }
         return result;

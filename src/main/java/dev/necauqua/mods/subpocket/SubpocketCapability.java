@@ -7,62 +7,38 @@ package dev.necauqua.mods.subpocket;
 
 import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.impl.SubpocketImpl;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
-import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
-import net.minecraftforge.event.AttachCapabilitiesEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerRespawnEvent;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
+
+import java.util.function.Supplier;
 
 import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static dev.necauqua.mods.subpocket.Subpocket.ns;
-import static net.minecraft.world.entity.Entity.RemovalReason.CHANGED_DIMENSION;
 
 @EventBusSubscriber(modid = MODID)
 public final class SubpocketCapability {
 
-    public static final Capability<ISubpocket> INSTANCE = CapabilityManager.get(new CapabilityToken<>() {});
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+        DeferredRegister.create(NeoForgeRegistries.Keys.ATTACHMENT_TYPES, MODID);
+
+    public static final Supplier<AttachmentType<SubpocketImpl>> TYPE =
+        ATTACHMENT_TYPES.register("storage", () -> AttachmentType.serializable(SubpocketImpl::new)
+            .copyHandler((attachment, holder, provider) -> {
+                var copy = new SubpocketImpl();
+                copy.cloneFrom(attachment);
+                return copy;
+            })
+            .copyOnDeath()
+            .build());
 
     public static ISubpocket get(Player player) {
-        return player.getCapability(INSTANCE)
-            .orElseThrow(() -> new IllegalStateException("Player had no subpocket capability"));
-    }
-
-    @EventBusSubscriber(modid = MODID, bus = Bus.MOD)
-    private static final class Register {
-
-        @SubscribeEvent
-        public static void on(RegisterCapabilitiesEvent e) {
-            e.register(ISubpocket.class);
-        }
-    }
-
-    @SubscribeEvent
-    public static void on(AttachCapabilitiesEvent<Entity> e) {
-        if (e.getObject() instanceof Player) {
-            e.addCapability(ns("storage"), new SubpocketImpl());
-        }
-    }
-
-    @SubscribeEvent
-    public static void on(PlayerEvent.Clone e) {
-        var original = e.getOriginal();
-        var hack = !original.isAlive();
-        if (hack) {
-            original.revive();
-        }
-        get(e.getEntity()).cloneFrom(get(original));
-        if (hack) {
-            original.remove(CHANGED_DIMENSION);
-        }
+        return player.getData(TYPE);
     }
 
     @SubscribeEvent

@@ -3,12 +3,11 @@ package dev.necauqua.mods.subpocket.config;
 import com.google.gson.stream.JsonReader;
 import dev.necauqua.mods.subpocket.Subpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocketStack.OverflowType;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.common.ForgeConfigSpec.Builder;
-import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec.Builder;
+import net.neoforged.neoforge.common.ModConfigSpec.ConfigValue;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -16,10 +15,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static net.minecraftforge.fml.config.ModConfig.Type.CLIENT;
-import static net.minecraftforge.fml.config.ModConfig.Type.SERVER;
+import static net.neoforged.fml.config.ModConfig.Type.CLIENT;
+import static net.neoforged.fml.config.ModConfig.Type.SERVER;
 
-@EventBusSubscriber(modid = MODID, bus = Bus.MOD)
 public final class Config {
 
     // clientside
@@ -43,16 +41,16 @@ public final class Config {
             .translation("config." + MODID + ":" + name);
     }
 
-    private static <E extends Enum<E>> ConfigValue<E> defineEnum(ForgeConfigSpec.Builder builder, String name, E defaultValue) {
+    private static <E extends Enum<E>> ConfigValue<E> defineEnum(ModConfigSpec.Builder builder, String name, E defaultValue) {
         return adjust(builder, name).defineEnum(name, defaultValue);
     }
 
-    private static <T> ConfigValue<T> define(ForgeConfigSpec.Builder builder, String name, T defaultValue) {
+    private static <T> ConfigValue<T> define(ModConfigSpec.Builder builder, String name, T defaultValue) {
         return adjust(builder, name).define(name, defaultValue);
     }
 
-    public static ForgeConfigSpec defineClient() {
-        var clientConfig = new ForgeConfigSpec.Builder();
+    public static ModConfigSpec defineClient() {
+        var clientConfig = new ModConfigSpec.Builder();
         overflowType = defineEnum(clientConfig, "overflow_type", OverflowType.SCIENTIFIC);
         stackCountCondition = defineEnum(clientConfig, "stack_count_condition", StackCountCondition.ALWAYS);
         stackCountSize = defineEnum(clientConfig, "stack_count_size", StackCountSize.LARGE);
@@ -60,8 +58,8 @@ public final class Config {
         return clientConfig.build();
     }
 
-    public static ForgeConfigSpec defineCommon() {
-        var clientConfig = new ForgeConfigSpec.Builder();
+    public static ModConfigSpec defineCommon() {
+        var clientConfig = new ModConfigSpec.Builder();
         blockEnderChests = define(clientConfig, "block_ender_chests", true);
         allowBreakingUnbreakable = define(clientConfig, "allow_breaking_unbreakable", true);
         subspatialKeyFrozen = define(clientConfig, "subspatial_key_frozen", true);
@@ -69,10 +67,9 @@ public final class Config {
         return clientConfig.build();
     }
 
-    public static void init() {
-        var context = ModLoadingContext.get();
-        context.registerConfig(CLIENT, defineClient());
-        context.registerConfig(SERVER, defineCommon());
+    public static void init(ModContainer modContainer) {
+        modContainer.registerConfig(CLIENT, defineClient());
+        modContainer.registerConfig(SERVER, defineCommon());
     }
 
     // yes I am adapting those now unused .tooltip strings, so I won't have

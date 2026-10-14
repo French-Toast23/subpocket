@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+issueTrackerURL="https://github.com/French-Toast23/subpocket/issues"
+
+[[mods]]
+modId="subpocket"
+version="${file.jarVersion}"
+displayName="subpocket"
+updateJSONURL="https://raw.githubusercontent.com/wiki/necauqua/subpocket/updates.json"
+displayURL="https://modrinth.com/mod/subpocket"
+logoFile="logo.png"
+credits='''People from my discord who keep me entertained and remind me to have an above-zero level of productivity
+
+__Minecraftian__ - for the cool subpocket key texture'''
+authors="necauqua"
+description='''This mod adds almost for free some INFININE (omg) storage to the game.
+
+Butt beware..'''
+
+[[mixins]]
+config="subpocket.mixins.json"
+
+[[dependencies.subpocket]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.subpocket]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.22)"
+    ordering="NONE"
+    side="BOTH"

@@ -8,6 +8,8 @@ package dev.necauqua.mods.subpocket.impl;
 import dev.necauqua.mods.subpocket.SubpocketContainer;
 import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocketStack;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
@@ -73,9 +75,7 @@ public final class SubpocketStackImpl implements ISubpocketStack {
         if (empty) {
             return true;
         }
-        var copy = ref.copy();
-        copy.setCount(stack.getCount());
-        return ItemStack.matches(stack, copy);
+        return ItemStack.isSameItemSameComponents(ref, stack);
     }
 
     @Override
@@ -132,11 +132,15 @@ public final class SubpocketStackImpl implements ISubpocketStack {
     }
 
     @Override
-    public CompoundTag serializeNBT() {
+    public CompoundTag serializeNBT(HolderLookup.Provider provider) {
         var nbt = new CompoundTag();
-        var refNbt = ref.serializeNBT();
-        refNbt.remove("Count"); // eh, but why to store it, huh
-        nbt.put("ref", refNbt);
+        var lookup = provider != null ? provider : VanillaRegistries.createLookup();
+        var refTag = ref.save(lookup);
+        if (refTag instanceof CompoundTag refNbt) {
+            refNbt.remove("count");
+            refNbt.remove("Count");
+            nbt.put("ref", refNbt);
+        }
         nbt.putByteArray("count", count.toByteArray());
         nbt.putFloat("x", x);
         nbt.putFloat("y", y);
@@ -144,10 +148,12 @@ public final class SubpocketStackImpl implements ISubpocketStack {
     }
 
     @Override
-    public void deserializeNBT(CompoundTag nbt) {
+    public void deserializeNBT(HolderLookup.Provider provider, CompoundTag nbt) {
+        var lookup = provider != null ? provider : VanillaRegistries.createLookup();
         var refNbt = nbt.getCompound("ref");
-        refNbt.putByte("Count", (byte) 1); // as above      ^
-        ref = ItemStack.of(refNbt);
+        refNbt.putInt("count", 1);
+        refNbt.putByte("Count", (byte) 1);
+        ref = ItemStack.parseOptional(lookup, refNbt);
         count = nbt.contains("count", 7) ?
             new BigInteger(nbt.getByteArray("count")) :
             BigInteger.ONE;

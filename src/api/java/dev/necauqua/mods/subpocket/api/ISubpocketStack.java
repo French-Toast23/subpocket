@@ -5,9 +5,10 @@
 
 package dev.necauqua.mods.subpocket.api;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.util.INBTSerializable;
+import net.neoforged.neoforge.common.util.INBTSerializable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,6 +16,20 @@ import java.math.BigInteger;
 import java.util.function.UnaryOperator;
 
 public interface ISubpocketStack extends INBTSerializable<CompoundTag> {
+
+    @Override
+    CompoundTag serializeNBT(HolderLookup.Provider provider);
+
+    @Override
+    void deserializeNBT(HolderLookup.Provider provider, CompoundTag nbt);
+
+    default CompoundTag serializeNBT() {
+        return serializeNBT(null);
+    }
+
+    default void deserializeNBT(CompoundTag nbt) {
+        deserializeNBT(null, nbt);
+    }
 
     // semi-easter-egg (well, how does one get to omg-illion items?) - Clicker Heroes legend is used here
     // (except that `O` is replaced by `o` because in minecraft font it is too similar to zero)

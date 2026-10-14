@@ -1,15 +1,21 @@
 {
   "required": true,
   "package": "dev.necauqua.mods.subpocket.mixin",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_21",
   "refmap": "subpocket.refmap.json",
   "mixins": [
     "BlockBehaviourMixin",
-    "ServerPlayerGameModeMixin"
+    "ServerPlayerGameModeMixin",
+    "ItemEntityAccessor",
+    "LootTableAccessor"
   ],
   "client": [
     "ChatComponentMixin",
-    "MultiPlayerGameModeMixin"
+    "MultiPlayerGameModeMixin",
+    "FontAccessor",
+    "CompositeRenderTypeAccessor",
+    "CompositeStateAccessor",
+    "SkinManagerAccessor"
   ],
   "minVersion": "0.8"
 }

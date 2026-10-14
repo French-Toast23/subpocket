@@ -12,7 +12,7 @@ import java.util.List;
 @Mixin(ChatComponent.class)
 public final class ChatComponentMixin {
 
-    @Redirect(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;ILnet/minecraft/client/GuiMessageTag;Z)V",
+    @Redirect(method = "addMessageToDisplayQueue",
         at = @At(value = "INVOKE", target = "Ljava/util/List;get(I)Ljava/lang/Object;"))
     Object addMessage(List<Object> instance, int i) {
         return Name.enhance((FormattedCharSequence) instance.get(i));

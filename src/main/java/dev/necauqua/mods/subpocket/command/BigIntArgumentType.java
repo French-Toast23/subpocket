@@ -10,28 +10,13 @@ import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.synchronization.ArgumentTypeInfo;
 import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegisterEvent;
-
 import javax.annotation.Nullable;
 import java.math.BigInteger;
 
 import static com.mojang.brigadier.StringReader.isAllowedNumber;
-import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static dev.necauqua.mods.subpocket.Subpocket.ns;
 
-@EventBusSubscriber(modid = MODID, bus = Bus.MOD)
 public record BigIntArgumentType(@Nullable BigInteger minimum,
                                  @Nullable BigInteger maximum) implements ArgumentType<BigInteger>, ArgumentTypeInfo.Template<BigIntArgumentType> {
-
-    @SubscribeEvent
-    public static void on(RegisterEvent e) {
-        e.register(ForgeRegistries.Keys.COMMAND_ARGUMENT_TYPES, ns("bigint"), () -> BigIntArgumentTypeInfo.INSTANCE);
-        ArgumentTypeInfos.registerByClass(BigIntArgumentType.class, BigIntArgumentTypeInfo.INSTANCE);
-    }
 
     public static BigIntArgumentType bigint() {
         return bigint(null);
@@ -111,7 +96,7 @@ public record BigIntArgumentType(@Nullable BigInteger minimum,
         }
     }
 
-    private static final class BigIntArgumentTypeInfo implements ArgumentTypeInfo<BigIntArgumentType, BigIntArgumentType> {
+    public static final class BigIntArgumentTypeInfo implements ArgumentTypeInfo<BigIntArgumentType, BigIntArgumentType> {
 
         public static final BigIntArgumentTypeInfo INSTANCE = new BigIntArgumentTypeInfo();
 

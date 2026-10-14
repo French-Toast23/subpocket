@@ -2,17 +2,17 @@ package dev.necauqua.mods.subpocket.eggs;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.*;
-import net.minecraft.network.chat.contents.LiteralContents;
+import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.FormattedCharSink;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.RenderNameTagEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderNameTagEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -37,10 +37,6 @@ public final class Name {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void on(PlayerEvent.NameFormat e) {
         if (NECAUQUA.equals(e.getEntity().getGameProfile().getId())) {
-            // sadly there is no reason to just return CoolComponent here
-            // instead of doing cringe chat stuff below
-            // because it does not survive being sent through the network as there are
-            // no custom component support and thus no custom component serializers
             e.setDisplayname(e.getDisplayname().copy().withStyle(LIGHT_PURPLE));
         }
     }
@@ -74,9 +70,8 @@ public final class Name {
             .withInsertion(USERNAME)
             .withClickEvent(new ClickEvent(SUGGEST_COMMAND, "/msg " + USERNAME + " "));
 
-        // an easter egg inside of an easter egg, lol
         var observer = Minecraft.getInstance().player;
-        if (observer != null && !observer.getGameProfile().getId().equals(NECAUQUA)) { // prevent infinite recursion because of NameFormat
+        if (observer != null && !observer.getGameProfile().getId().equals(NECAUQUA)) {
             var hovered = Component.literal("hello, ").append(observer.getDisplayName());
             style = style.withHoverEvent(new HoverEvent(SHOW_TEXT, hovered));
         }
@@ -84,12 +79,10 @@ public final class Name {
         var codePoints = name.codePoints().toArray();
         var rng = ThreadLocalRandom.current();
 
-        // add a possibility of clean username to show up once in a tick
         if (rng.nextInt(codePoints.length) == 0) {
             return FormattedCharSequence.forward(name, style);
         }
 
-        // up to half of the characters are obf
         var indices = new int[codePoints.length / 2];
         Arrays.setAll(indices, i -> rng.nextInt(codePoints.length));
 
@@ -98,9 +91,6 @@ public final class Name {
         return consumer -> {
             var ptr = indices.length - 1;
             for (var i = 0; i < codePoints.length; i++) {
-                // if there are obf indices left, and we hit one - make it obf:
-                //   this is going to miss a few of them since indices are unsorted
-                //   but this is exactly what I want - *up to* half the characters, not *always*
                 Style s;
                 if (ptr != 0 && indices[ptr] == i) {
                     --ptr;
@@ -116,14 +106,25 @@ public final class Name {
         };
     }
 
-    private static final class CoolComponent extends MutableComponent {
+    private static final class CoolComponent implements Component {
 
-        private static final LiteralContents CONTENTS = new LiteralContents(USERNAME);
+        private static final PlainTextContents CONTENTS = PlainTextContents.create(USERNAME);
 
         private final TickReplacer replacer = new TickReplacer(null, () -> obfuscateName(USERNAME));
 
-        private CoolComponent() {
-            super(CONTENTS, Collections.emptyList(), Style.EMPTY);
+        @Override
+        public Style getStyle() {
+            return Style.EMPTY;
+        }
+
+        @Override
+        public ComponentContents getContents() {
+            return CONTENTS;
+        }
+
+        @Override
+        public List<Component> getSiblings() {
+            return Collections.emptyList();
         }
 
         @Override
@@ -133,7 +134,12 @@ public final class Name {
 
         @Override
         public MutableComponent plainCopy() {
-            return new CoolComponent();
+            return Component.literal(USERNAME);
+        }
+
+        @Override
+        public MutableComponent copy() {
+            return Component.literal(USERNAME);
         }
     }
 
@@ -194,27 +200,21 @@ public final class Name {
 
         @Override
         public boolean accept(int index, Style style, int codePoint) {
-            // if code point didn't match current expectation..
             if (codePoint != target[bufferPointer]) {
-                // .. we dump the buffer of previously matched calls ..
                 for (var i = 0; i < bufferPointer; i++) {
                     if (!consumer.accept(buffer1[i], buffer2[i], buffer3[i])) {
                         return false;
                     }
                 }
-                // .. and reset that buffer for the future ..
                 bufferPointer = 0;
-                // .. and don't forget to send the code point that failed us
                 return consumer.accept(index, style, codePoint);
             }
-            // else, we are either done, and then we send in a replacement ..
             if (bufferPointer == target.length - 1) {
                 if (!replacement.accept(consumer)) {
                     return false;
                 }
-                bufferPointer = 0; // don't forget to reset the buffer
+                bufferPointer = 0;
             } else {
-                // .. or push current call to the buffer in case this is only a prefix
                 buffer1[bufferPointer] = index;
                 buffer2[bufferPointer] = style;
                 buffer3[bufferPointer] = codePoint;
@@ -224,4 +224,3 @@ public final class Name {
         }
     }
 }
-

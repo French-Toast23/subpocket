@@ -30,7 +30,7 @@ public final class BlockBehaviourMixin {
         }
         // if not performing the ritual
         if (state.getBlock() == Blocks.ENDER_CHEST
-            && player.level.dimension() == Level.END
+            && player.level().dimension() == Level.END
             && !SubpocketCapability.get(player).isUnlocked()) {
             return;
         }

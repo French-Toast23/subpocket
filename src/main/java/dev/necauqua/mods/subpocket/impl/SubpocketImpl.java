@@ -7,18 +7,14 @@ package dev.necauqua.mods.subpocket.impl;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import dev.necauqua.mods.subpocket.SubpocketCapability;
 import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocketStack;
-import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.math.BigInteger;
 import java.util.Collections;
 import java.util.Iterator;
@@ -27,20 +23,10 @@ import java.util.List;
 
 public final class SubpocketImpl implements ISubpocket {
 
-    private LazyOptional<ISubpocket> container;
-
     private LinkedList<ISubpocketStack> stacks = new LinkedList<>();
     private boolean unlocked = false;
 
-    public SubpocketImpl() {
-        onInvalidated(LazyOptional.empty());
-    }
-
-    private void onInvalidated(LazyOptional<ISubpocket> invalid) {
-        LazyOptional<ISubpocket> newContainer = LazyOptional.of(() -> this);
-        newContainer.addListener(this::onInvalidated);
-        container = newContainer;
-    }
+    public SubpocketImpl() {}
 
     @Override
     public boolean isUnlocked() {
@@ -152,17 +138,17 @@ public final class SubpocketImpl implements ISubpocket {
     }
 
     @Override
-    public CompoundTag serializeNBT() {
+    public CompoundTag serializeNBT(HolderLookup.Provider provider) {
         var nbt = new CompoundTag();
         var list = new ListTag();
-        stacks.forEach(s -> list.add(s.serializeNBT()));
+        stacks.forEach(s -> list.add(s.serializeNBT(provider)));
         nbt.put("storage", list);
         nbt.putBoolean("unlocked", unlocked);
         return nbt;
     }
 
     @Override
-    public void deserializeNBT(CompoundTag nbt) {
+    public void deserializeNBT(HolderLookup.Provider provider, CompoundTag nbt) {
         clear();
         unlocked = nbt.getBoolean("unlocked");
         var listBase = nbt.get("storage");
@@ -170,20 +156,13 @@ public final class SubpocketImpl implements ISubpocket {
             return;
         }
         for (var i = 0; i < list.size(); i++) {
-            var stack = SubpocketStackFactoryImpl.INSTANCE
-                .create(list.getCompound(i));
+            var stack = new SubpocketStackImpl();
+            stack.deserializeNBT(provider, list.getCompound(i));
             if (stack.isEmpty()) {
                 continue; // in case we had some kind of malformed nbt, idk
             }
             stack.setBoundStorage(this);
             stacks.add(stack);
         }
-    }
-
-    @Override
-    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> capability, @Nullable Direction direction) {
-        return capability == SubpocketCapability.INSTANCE ?
-                container.cast() :
-                LazyOptional.empty();
     }
 }

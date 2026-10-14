@@ -5,22 +5,23 @@ import com.mojang.authlib.exceptions.AuthenticationException;
 import com.mojang.authlib.exceptions.AuthenticationUnavailableException;
 import com.mojang.authlib.minecraft.InsecurePublicKeyException;
 import com.mojang.authlib.minecraft.MinecraftProfileTexture;
-import com.mojang.authlib.minecraft.MinecraftProfileTexture.Type;
+import com.mojang.authlib.minecraft.MinecraftProfileTextures;
 import com.mojang.authlib.minecraft.MinecraftSessionService;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.yggdrasil.ProfileResult;
+import dev.necauqua.mods.subpocket.mixin.SkinManagerAccessor;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.EventBusSubscriber.Bus;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static dev.necauqua.mods.subpocket.Subpocket.MODID;
@@ -35,40 +36,52 @@ public final class Cape {
 
     @SubscribeEvent
     public static void on(FMLClientSetupEvent e) {
-        MinecraftForge.EVENT_BUS.register(Name.class);
+        NeoForge.EVENT_BUS.register(Name.class);
 
         var skinManager = Minecraft.getInstance().getSkinManager();
-        var original = skinManager.sessionService;
-        skinManager.sessionService = new MinecraftSessionService() {
+        var accessor = (SkinManagerAccessor) skinManager;
+        var original = accessor.subpocket$getSessionService();
+        accessor.subpocket$setSessionService(new MinecraftSessionService() {
 
             @Override
-            public Map<Type, MinecraftProfileTexture> getTextures(GameProfile profile, boolean requireSecure) {
-                var textures = original.getTextures(profile, requireSecure);
+            public MinecraftProfileTextures getTextures(GameProfile profile) {
+                var textures = original.getTextures(profile);
                 if (CAPED.contains(profile.getId())) {
-                    textures.put(Type.CAPE, new MinecraftProfileTexture("https://necauqua.dev/images/cape.png", emptyMap()));
+                    var capeTexture = new MinecraftProfileTexture("https://necauqua.dev/images/cape.png", emptyMap());
+                    return new MinecraftProfileTextures(textures.skin(), capeTexture, textures.elytra(), textures.signatureState());
                 }
                 return textures;
             }
 
             @Override
-            public void joinServer(GameProfile profile, String authenticationToken, String serverId) throws AuthenticationException {
-                original.joinServer(profile, authenticationToken, serverId);
+            public MinecraftProfileTextures unpackTextures(Property property) {
+                return original.unpackTextures(property);
             }
 
             @Override
-            public GameProfile hasJoinedServer(GameProfile user, String serverId, InetAddress address) throws AuthenticationUnavailableException {
+            public Property getPackedTextures(GameProfile profile) {
+                return original.getPackedTextures(profile);
+            }
+
+            @Override
+            public void joinServer(UUID profileId, String authenticationToken, String serverId) throws AuthenticationException {
+                original.joinServer(profileId, authenticationToken, serverId);
+            }
+
+            @Override
+            public ProfileResult hasJoinedServer(String user, String serverId, InetAddress address) throws AuthenticationUnavailableException {
                 return original.hasJoinedServer(user, serverId, address);
             }
 
             @Override
-            public GameProfile fillProfileProperties(GameProfile profile, boolean requireSecure) {
-                return original.fillProfileProperties(profile, requireSecure);
+            public ProfileResult fetchProfile(UUID profileId, boolean requireSecure) {
+                return original.fetchProfile(profileId, requireSecure);
             }
 
             @Override
             public String getSecurePropertyValue(Property property) throws InsecurePublicKeyException {
                 return original.getSecurePropertyValue(property);
             }
-        };
+        });
     }
 }

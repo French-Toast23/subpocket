@@ -7,7 +7,7 @@ package dev.necauqua.mods.subpocket.api;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
@@ -63,8 +63,8 @@ public interface ISubpocketStackFactory {
      **/
     @Nonnull
     default ISubpocketStack create(ItemStack ref, BigInteger count) {
-        var a = Objects.hashCode(ForgeRegistries.ITEMS.getKey(ref.getItem()));
-        var b = Objects.hashCode(ref.getTag());
+        var a = Objects.hashCode(BuiltInRegistries.ITEM.getKey(ref.getItem()));
+        var b = Objects.hashCode(ref.getComponentsPatch());
         var rand = new Random(31L * a + b); // meh
         var x = rand.nextInt(160 - 18) + 1;
         var y = rand.nextInt(70 - 18) + 1;

@@ -8,37 +8,36 @@ package dev.necauqua.mods.subpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocketStack;
 import dev.necauqua.mods.subpocket.impl.SubpocketStackFactoryImpl;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegisterEvent;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.math.BigInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static dev.necauqua.mods.subpocket.Subpocket.MODID;
-import static dev.necauqua.mods.subpocket.Subpocket.ns;
 import static net.minecraft.world.inventory.InventoryMenu.*;
 
-@EventBusSubscriber(modid = MODID, bus = Bus.MOD)
 public final class SubpocketContainer extends AbstractContainerMenu {
 
     public static final int WIDTH = 160, HEIGHT = 70;
 
-    public static final MenuType<SubpocketContainer> TYPE = new MenuType<>(SubpocketContainer::new);
+    public static final DeferredRegister<MenuType<?>> CONTAINERS = DeferredRegister.create(Registries.MENU, MODID);
+
+    public static final DeferredHolder<MenuType<?>, MenuType<SubpocketContainer>> TYPE =
+        CONTAINERS.register("container", () -> new MenuType<>(SubpocketContainer::new, FeatureFlags.VANILLA_SET));
 
     private static final ResourceLocation[] ARMOR_SLOT_TEXTURES = {
         EMPTY_ARMOR_SLOT_BOOTS,
@@ -56,13 +55,8 @@ public final class SubpocketContainer extends AbstractContainerMenu {
     private final Player player;
     private final ISubpocket storage;
 
-    @SubscribeEvent
-    public static void on(RegisterEvent e) {
-        e.register(ForgeRegistries.Keys.MENU_TYPES, ns("container"), () -> TYPE);
-    }
-
     public SubpocketContainer(int windowId, Inventory playerInv) {
-        super(TYPE, windowId);
+        super(TYPE.get(), windowId);
         player = playerInv.player;
         storage = SubpocketCapability.get(player);
 
@@ -79,7 +73,7 @@ public final class SubpocketContainer extends AbstractContainerMenu {
         }
         for (var k = 0; k < 4; ++k) { // armor slots
             var slotType = VALID_EQUIPMENT_SLOTS[k];
-            addSlot(new Slot(playerInv, 39 - k, 8, k * 18 + 26) { // yay for non-existent ArmorSlot class
+            addSlot(new Slot(playerInv, 39 - k, 8, k * 18 + 26) {
                 @Override
                 public int getMaxStackSize() {
                     return 1;
@@ -95,7 +89,7 @@ public final class SubpocketContainer extends AbstractContainerMenu {
                     var itemstack = getItem();
                     return itemstack.isEmpty()
                         || player.isCreative()
-                        || !EnchantmentHelper.hasBindingCurse(itemstack);
+                        || !EnchantmentHelper.has(itemstack, EnchantmentEffectComponents.PREVENT_ARMOR_CHANGE);
                 }
             }.setBackground(InventoryMenu.BLOCK_ATLAS, ARMOR_SLOT_TEXTURES[slotType.getIndex()]));
         }
@@ -133,7 +127,7 @@ public final class SubpocketContainer extends AbstractContainerMenu {
     }
 
     private boolean tryToAddToPlayer(ISubpocketStack stack, ItemStack retrieved) {
-        var slot = Mob.getEquipmentSlotForItem(retrieved);
+        var slot = player.getEquipmentSlotForItem(retrieved);
         if (player.getItemBySlot(slot).isEmpty()) {
             player.setItemSlot(slot, retrieved);
             return true;
@@ -281,9 +275,9 @@ public final class SubpocketContainer extends AbstractContainerMenu {
 
     // middle-clicking inventory slot
     @Override
-    public void doClick(int slotId, int dragType, ClickType clickType, Player player) {
+    public void clicked(int slotId, int dragType, ClickType clickType, Player player) {
         if (clickType != ClickType.CLONE || player.isCreative() || slotId < 0) {
-            super.doClick(slotId, dragType, clickType, player);
+            super.clicked(slotId, dragType, clickType, player);
             return;
         }
         var slot = slots.get(slotId);
@@ -304,7 +298,7 @@ public final class SubpocketContainer extends AbstractContainerMenu {
     }
 
     @Override
-    public boolean stillValid(@Nullable Player player) {
+    public boolean stillValid(Player player) {
         return true;
     }
 }

@@ -5,8 +5,8 @@
 
 package dev.necauqua.mods.subpocket;
 
-import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.config.Config;
+import dev.necauqua.mods.subpocket.mixin.ItemEntityAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.CommonComponents;
@@ -15,28 +15,32 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.item.*;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.event.CreativeModeTabEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
-import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
-import net.minecraftforge.registries.RegistryObject;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.EventBusSubscriber.Bus;
+import net.neoforged.neoforge.common.util.TriState;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.registries.DeferredItem;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -46,20 +50,18 @@ import static dev.necauqua.mods.subpocket.Subpocket.MODID;
 @EventBusSubscriber(modid = MODID)
 public final class SubspatialKeyItem extends Item implements MenuProvider {
 
-    public static RegistryObject<SubspatialKeyItem> INSTANCE = Subpocket.ITEMS.register("key", SubspatialKeyItem::new);
+    public static final DeferredItem<SubspatialKeyItem> INSTANCE = Subpocket.ITEMS.registerItem("key", SubspatialKeyItem::new, new Properties().stacksTo(1).rarity(Rarity.EPIC));
 
-    public SubspatialKeyItem() {
-        super(new Properties()
-            .stacksTo(1)
-            .rarity(Rarity.EPIC));
+    public SubspatialKeyItem(Properties properties) {
+        super(properties);
     }
 
     @EventBusSubscriber(modid = MODID, bus = Bus.MOD)
     private static final class CreativeTabHandler {
 
         @SubscribeEvent
-        public static void on(CreativeModeTabEvent.BuildContents e) {
-            if (e.getTab() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+        public static void on(BuildCreativeModeTabContentsEvent e) {
+            if (e.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
                 e.accept(INSTANCE);
             }
         }
@@ -88,13 +90,14 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
         if (!Config.subspatialKeyFrozen.get()) {
             return false;
         }
-        if (entity.age >= 5999 // remove the fake item from the 'makeFakeItem' method (e.g. from /give)
-            || !Config.subspatialKeyNoDespawn.get() && entity.age != -32768 && --entity.lifespan == 0) {
+        var accessor = (ItemEntityAccessor) entity;
+        if (accessor.subpocket$getAge() >= 5999 // remove the fake item from the 'makeFakeItem' method (e.g. from /give)
+            || !Config.subspatialKeyNoDespawn.get() && accessor.subpocket$getAge() != -32768 && --entity.lifespan == 0) {
             // shortening the lifespan instead of growing the age here to keep the 'frozen' look ^
             entity.discard();
         }
-        if (entity.pickupDelay > 0 && entity.pickupDelay != 32767) {
-            --entity.pickupDelay;
+        if (accessor.subpocket$getPickupDelay() > 0 && accessor.subpocket$getPickupDelay() != 32767) {
+            accessor.subpocket$setPickupDelay(accessor.subpocket$getPickupDelay() - 1);
         }
         return true;
     }
@@ -103,14 +106,12 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
     @OnlyIn(Dist.CLIENT)
     public boolean isFoil(ItemStack stack) {
         var player = Minecraft.getInstance().player;
-        return player != null && player.getCapability(SubpocketCapability.INSTANCE)
-            .map(ISubpocket::isUnlocked)
-            .orElse(false); // can actually be empty here (e.g. when dead)
+        return player != null && SubpocketCapability.get(player).isUnlocked();
     }
 
     @Override
     @OnlyIn(Dist.CLIENT)
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         if (!isFoil(stack)) {
             tooltip.add(Component.translatable("item." + MODID + ":key.desc"));
         }
@@ -135,10 +136,11 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
         if (player.isCreative() || !SubpocketCapability.get(player).isUnlocked()) {
             return;
         }
-        if (!player.level.isClientSide) {
+        if (!player.level().isClientSide) {
             player.displayClientMessage(Component.translatable("popup." + MODID + ":blocked_ender_chest"), true);
         }
-        e.setUseBlock(Event.Result.DENY);
+        e.setUseBlock(TriState.FALSE);
+        e.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -149,26 +151,26 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
         }
         entity.setInvulnerable(true);
         if (Config.subspatialKeyNoDespawn.get()) {
-            entityItem.age = -32768;
+            ((ItemEntityAccessor) entityItem).subpocket$setAge(-32768);
         }
     }
 
     @SubscribeEvent
     public static void on(PlayerEvent.BreakSpeed e) {
         var player = e.getEntity();
-        if (player.level.dimension() == Level.END
+        if (player.level().dimension() == Level.END
             && e.getState().getBlock() == Blocks.ENDER_CHEST
             && player.getMainHandItem().getItem() == SubspatialKeyItem.INSTANCE.get()
-            && player.level.getGameTime() % 20 == 0
+            && player.level().getGameTime() % 20 == 0
             && !SubpocketCapability.get(player).isUnlocked()) {
-            player.hurt(DamageSource.OUT_OF_WORLD, 1.0F);
+            player.hurt(player.damageSources().fellOutOfWorld(), 1.0F);
         }
     }
 
     @SubscribeEvent
     public static void on(BlockEvent.BreakEvent e) {
         var player = e.getPlayer();
-        if (player.level.dimension() != Level.END
+        if (player.level().dimension() != Level.END
             || e.getState().getBlock() != Blocks.ENDER_CHEST
             || player.getMainHandItem().getItem() != SubspatialKeyItem.INSTANCE.get()) {
             return;
@@ -177,15 +179,16 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
         if (storage.isUnlocked()) {
             return;
         }
-        var level = player.level;
+        var level = player.level();
         if (level.isClientSide) {
             return;
         }
         var p = e.getPos();
         var lightning = EntityType.LIGHTNING_BOLT.create(level);
-        assert lightning != null; // wtf
-        lightning.setPos(p.getX(), p.getY(), p.getZ());
-        level.addFreshEntity(lightning);
+        if (lightning != null) {
+            lightning.moveTo(Vec3.atBottomCenterOf(p));
+            level.addFreshEntity(lightning);
+        }
         storage.unlock();
         Network.syncToClient(player);
     }
@@ -193,7 +196,7 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
     @SubscribeEvent
     public static void on(PlayerInteractEvent.LeftClickBlock e) {
         if (e.getItemStack().getItem() == INSTANCE.get()) {
-            e.setUseBlock(Event.Result.DENY);
+            e.setUseBlock(TriState.FALSE);
         }
     }
 
