@@ -9,6 +9,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import dev.necauqua.mods.subpocket.api.ISubpocket;
 import dev.necauqua.mods.subpocket.api.ISubpocketStack;
+import dev.necauqua.mods.subpocket.SubspatialKeyItem;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -65,7 +66,7 @@ public final class SubpocketImpl implements ISubpocket {
 
     @Override
     public boolean add(@Nonnull ISubpocketStack stack) {
-        if (stack.isEmpty()) {
+        if (stack.isEmpty() || stack.getRef().getItem() == SubspatialKeyItem.INSTANCE.get()) {
             return false;
         }
         var matching = find(stack.getRef());
@@ -81,7 +82,7 @@ public final class SubpocketImpl implements ISubpocket {
 
     @Override
     public boolean add(@Nonnull ItemStack stack) {
-        if (stack.isEmpty()) {
+        if (stack.isEmpty() || stack.getItem() == SubspatialKeyItem.INSTANCE.get()) {
             return false;
         }
         var matching = find(stack);

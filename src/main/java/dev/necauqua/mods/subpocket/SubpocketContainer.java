@@ -155,6 +155,9 @@ public final class SubpocketContainer extends AbstractContainerMenu {
             // left click
             case 1 -> {
                 if (!hand.isEmpty()) {
+                    if (hand.getItem() == SubspatialKeyItem.INSTANCE.get()) {
+                        return;
+                    }
                     if (!hovered.fill(hand)) {
                         storage.add(SubpocketStackFactoryImpl.INSTANCE.create(hand, (int) mx - 8, (int) my - 8));
                         hand.setCount(0);
@@ -177,6 +180,9 @@ public final class SubpocketContainer extends AbstractContainerMenu {
             // right click
             case 3 -> {
                 if (!hand.isEmpty()) {
+                    if (hand.getItem() == SubspatialKeyItem.INSTANCE.get()) {
+                        return;
+                    }
                     var x = hand.getCount();
                     x = x - x / 2;
                     storage.add(SubpocketStackFactoryImpl.INSTANCE
@@ -206,11 +212,14 @@ public final class SubpocketContainer extends AbstractContainerMenu {
             // wheel-up [from player inventory into storage]
             case 4 -> {
                 if (!hand.isEmpty()) { // filter by what is in hand
+                    if (hand.getItem() == SubspatialKeyItem.INSTANCE.get()) {
+                        return;
+                    }
                     var adding = SubpocketStackFactoryImpl.INSTANCE
                         .create(hand, (int) mx - 8, (int) my - 8);
                     if (click.isCtrl()) { // move items from inv slot by slot
                         var slot = findMatchingStack(adding, true);
-                        if (!slot.isEmpty()) {
+                        if (!slot.isEmpty() && slot.getItem() != SubspatialKeyItem.INSTANCE.get()) {
                             storage.add(SubpocketStackFactoryImpl.INSTANCE
                                 .create(slot, (int) mx - 8, (int) my - 8));
                             slot.setCount(0);
@@ -219,7 +228,7 @@ public final class SubpocketContainer extends AbstractContainerMenu {
                     }
                     if (click.isShift()) {
                         var slot = findMatchingStack(adding, true);
-                        if (!slot.isEmpty()) { // move items from inv one by one
+                        if (!slot.isEmpty() && slot.getItem() != SubspatialKeyItem.INSTANCE.get()) { // move items from inv one by one
                             storage.add(SubpocketStackFactoryImpl.INSTANCE
                                 .create(slot.split(1), (int) mx - 8, (int) my - 8));
                         }
@@ -231,11 +240,11 @@ public final class SubpocketContainer extends AbstractContainerMenu {
                     return;
                 }
                 // then filter by hovered
-                if (hovered.isEmpty()) {
+                if (hovered.isEmpty() || hovered.getRef().getItem() == SubspatialKeyItem.INSTANCE.get()) {
                     break;
                 }
                 var slot = findMatchingStack(hovered, true);
-                if (slot.isEmpty()) {
+                if (slot.isEmpty() || slot.getItem() == SubspatialKeyItem.INSTANCE.get()) {
                     break;
                 }
                 if (click.isCtrl()) { // move items from inv slot by slot
@@ -292,7 +301,11 @@ public final class SubpocketContainer extends AbstractContainerMenu {
     @Nonnull
     public ItemStack quickMoveStack(Player player, int index) {
         var slot = getSlot(index);
-        storage.add(slot.getItem());
+        var stack = slot.getItem();
+        if (stack.getItem() == SubspatialKeyItem.INSTANCE.get()) {
+            return ItemStack.EMPTY;
+        }
+        storage.add(stack);
         slot.set(ItemStack.EMPTY);
         return ItemStack.EMPTY;
     }
