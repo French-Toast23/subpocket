@@ -1,22 +1,66 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.necauqua.dev/' }
-    }
-    dependencies {
-        classpath 'dev.necauqua:necauqua-mod:0.10.0'
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'dev.necauqua.mods'
+version = '1.0.0'
+
+base {
+    archivesName = 'subpocket'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
-apply plugin: 'dev.necauqua.nmod'
+neoForge {
+    version = '21.1.252'
 
-sourceSets { api }
+    parchment {
+        mappingsVersion = '2024.11.10'
+        minecraftVersion = '1.21.1'
+    }
+}
 
-nmod {
-    curseID = '275425'
-    modrinthID = 'hVTSaz1j'
-    mcversions = ['1.19.3', '1.19.4']
-    forge = '1.19.3-44.1.0'
-    mappings = '1.19.3'
-    javaVersion = 17
-    mixin = '0.8.5'
+repositories {
+    mavenCentral()
+}
+
+runs {
+    configureEach {
+        ideName = 'NeoForge'
+    }
+
+    client {
+        client()
+    }
+
+    server {
+        server()
+    }
+
+    data {
+        data()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+jar {
+    archiveClassifier = 'universal'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
 }
