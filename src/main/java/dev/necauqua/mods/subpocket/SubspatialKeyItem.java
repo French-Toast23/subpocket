@@ -15,7 +15,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -27,7 +26,6 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -39,7 +37,6 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
-import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.registries.DeferredItem;
 
 import javax.annotation.Nullable;
@@ -155,42 +152,29 @@ public final class SubspatialKeyItem extends Item implements MenuProvider {
         }
     }
 
-    @SubscribeEvent
-    public static void on(PlayerEvent.BreakSpeed e) {
-        var player = e.getEntity();
-        if (player.level().dimension() == Level.END
-            && e.getState().getBlock() == Blocks.ENDER_CHEST
-            && player.getMainHandItem().getItem() == SubspatialKeyItem.INSTANCE.get()
-            && player.level().getGameTime() % 20 == 0
-            && !SubpocketCapability.get(player).isUnlocked()) {
-            player.hurt(player.damageSources().fellOutOfWorld(), 1.0F);
+    @Override
+    public void onCraftedBy(ItemStack stack, Level level, Player player) {
+        if (!level.isClientSide) {
+            var storage = SubpocketCapability.get(player);
+            if (!storage.isUnlocked()) {
+                storage.unlock();
+                Network.syncToClient(player);
+            }
         }
     }
 
     @SubscribeEvent
-    public static void on(BlockEvent.BreakEvent e) {
-        var player = e.getPlayer();
-        if (player.level().dimension() != Level.END
-            || e.getState().getBlock() != Blocks.ENDER_CHEST
-            || player.getMainHandItem().getItem() != SubspatialKeyItem.INSTANCE.get()) {
-            return;
+    public static void on(PlayerEvent.ItemCraftedEvent e) {
+        if (e.getCrafting().getItem() == INSTANCE.get()) {
+            var player = e.getEntity();
+            if (!player.level().isClientSide) {
+                var storage = SubpocketCapability.get(player);
+                if (!storage.isUnlocked()) {
+                    storage.unlock();
+                    Network.syncToClient(player);
+                }
+            }
         }
-        var storage = SubpocketCapability.get(player);
-        if (storage.isUnlocked()) {
-            return;
-        }
-        var level = player.level();
-        if (level.isClientSide) {
-            return;
-        }
-        var p = e.getPos();
-        var lightning = EntityType.LIGHTNING_BOLT.create(level);
-        if (lightning != null) {
-            lightning.moveTo(Vec3.atBottomCenterOf(p));
-            level.addFreshEntity(lightning);
-        }
-        storage.unlock();
-        Network.syncToClient(player);
     }
 
     @SubscribeEvent

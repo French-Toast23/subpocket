@@ -103,6 +103,7 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     private float localX = 0, localY = 0;
     private float scale = 1;
+    private float guiFitScale = 1.0F;
     private boolean mouseInside = false;
 
     private int underMouseIndex = NONE;
@@ -124,7 +125,7 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
         storage = container.getStorage();
 
         imageWidth = 203;
-        imageHeight = 166;
+        imageHeight = 236;
         stackCountCondition = new MnemonicButton<>(() -> isTabDown, Config.stackCountCondition);
         stackCountSize = new MnemonicButton<>(() -> isTabDown, Config.stackCountSize);
         pickingMode = new MnemonicButton<>(() -> isTabDown, Config.pickingMode);
@@ -146,13 +147,27 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
             }
         };
 
-        var newScale = (float) mc.getWindow().getGuiScale();
-        if (newScale != scale) {
-            scale = newScale;
+        super.init();
+
+        guiFitScale = Math.min(1.0F, Math.min((float) this.height / (float) imageHeight, (float) this.width / (float) (imageWidth + ARMOR_OFFSET)));
+        if (guiFitScale < 1.0F) {
+            topPos = Math.max(0, (int) ((this.height / guiFitScale - imageHeight) / 2));
+            leftPos = Math.max(0, (int) ((this.width / guiFitScale - imageWidth) / 2) - ARMOR_OFFSET);
+        } else {
+            leftPos -= ARMOR_OFFSET;
+            if (leftPos < 0) {
+                leftPos = 0;
+            }
+            if (topPos < 0) {
+                topPos = 0;
+            }
+        }
+
+        var effectiveScale = (float) mc.getWindow().getGuiScale() * guiFitScale;
+        if (effectiveScale != scale) {
+            scale = effectiveScale;
             framebuffer.resize((int) (WIDTH * scale), (int) (HEIGHT * scale), Minecraft.ON_OSX);
         }
-        super.init();
-        leftPos -= ARMOR_OFFSET;
 
         addRenderableWidget(stackCountCondition.withPos(leftPos + 9, topPos + 129));
         addRenderableWidget(stackCountSize.withPos(leftPos + 9, topPos + 139));
@@ -169,114 +184,127 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics, mouseX, mouseY, partialTicks);
-
-        // get global (not downscaled) mouse pos and 'downscale' it to floats, keeping precision
-        localX = (float) (mc.mouseHandler.xpos() / scale - leftPos - X_OFF);
-        localY = (float) (mc.mouseHandler.ypos() / scale - topPos - Y_OFF);
-
-        // exclude edges here because they behave weirdly sometimes
-        mouseInside = localX > 0 && localX < WIDTH && localY > 0 && localY < HEIGHT;
-        effectivePickingMode = hasAltDown() ? PickingMode.ALTERNATIVE : pickingMode.get();
-
-        graphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
-        if (isTabDown) {
-            graphics.blit(TEXTURE, leftPos, topPos + 126, 0, imageHeight, 27, 40);
+        if (guiFitScale < 1.0F) {
+            graphics.pose().pushPose();
+            graphics.pose().scale(guiFitScale, guiFitScale, 1.0F);
+            mouseX = (int) (mouseX / guiFitScale);
+            mouseY = (int) (mouseY / guiFitScale);
         }
 
-        mc.getProfiler().popPush("subpocket");
+        try {
+            renderBackground(graphics, mouseX, mouseY, partialTicks);
 
-        underMouseIndex = mouseInside ?
-            draggingIndex == NONE ?
-                effectivePickingMode.isAlt() ?
-                    altPick(storage.getStacksView(), localX, localY) :
-                    pixelPick() :
-                draggingIndex :
-            NONE;
+            // get global (not downscaled) mouse pos and 'downscale' it to floats, keeping precision
+            localX = (float) (mc.mouseHandler.xpos() / scale - leftPos - X_OFF);
+            localY = (float) (mc.mouseHandler.ypos() / scale - topPos - Y_OFF);
 
-        graphics.enableScissor(
-            leftPos + X_OFF,
-            topPos + Y_OFF,
-            leftPos + X_OFF + WIDTH,
-            topPos + Y_OFF + HEIGHT
-        );
+            // exclude edges here because they behave weirdly sometimes
+            mouseInside = localX > 0 && localX < WIDTH && localY > 0 && localY < HEIGHT;
+            effectivePickingMode = hasAltDown() ? PickingMode.ALTERNATIVE : pickingMode.get();
 
-        if (debug) {
-            if (underMouseIndex != NONE && underMouseIndex != draggingIndex) {
-                drawStack(graphics, storage.get(underMouseIndex), true, true);
+            graphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
+            if (isTabDown) {
+                graphics.blit(TEXTURE, leftPos, topPos + 126, 215, 30, 27, 40);
             }
-        } else {
-            var stacksView = storage.getStacksView();
-            for (var i = 0; i < stacksView.size(); ++i) {
-                if (i != draggingIndex) {
-                    drawStack(graphics, stacksView.get(i), i == underMouseIndex, true);
+
+            mc.getProfiler().popPush("subpocket");
+
+            underMouseIndex = mouseInside ?
+                draggingIndex == NONE ?
+                    effectivePickingMode.isAlt() ?
+                        altPick(storage.getStacksView(), localX, localY) :
+                        pixelPick() :
+                    draggingIndex :
+                NONE;
+
+            graphics.enableScissor(
+                leftPos + X_OFF,
+                topPos + Y_OFF,
+                leftPos + X_OFF + WIDTH,
+                topPos + Y_OFF + HEIGHT
+            );
+
+            if (debug) {
+                if (underMouseIndex != NONE && underMouseIndex != draggingIndex) {
+                    drawStack(graphics, storage.get(underMouseIndex), true, true);
+                }
+            } else {
+                var stacksView = storage.getStacksView();
+                for (var i = 0; i < stacksView.size(); ++i) {
+                    if (i != draggingIndex) {
+                        drawStack(graphics, stacksView.get(i), i == underMouseIndex, true);
+                    }
                 }
             }
-        }
 
-        mc.getProfiler().popPush("gameRenderer");
+            mc.getProfiler().popPush("gameRenderer");
 
-        if (draggingIndex != NONE) {
-            var pose = graphics.pose();
-            pose.pushPose();
-            pose.translate(
-                Mth.clamp(localX + draggingOffX, draggingOffX, WIDTH + draggingOffX),
-                Mth.clamp(localY + draggingOffY, draggingOffY, HEIGHT + draggingOffY),
-                0
-            );
-            drawStack(graphics, storage.get(draggingIndex), true, false);
-            pose.popPose();
-        }
-
-        graphics.disableScissor();
-
-        super.render(graphics, mouseX, mouseY, partialTicks);
-
-        var underMouse = storage.get(underMouseIndex);
-
-        if (debug && mouseInside) {
-            List<Component> lines = new ArrayList<>();
-
-            lines.add(Component.literal("debug:").withStyle(DARK_PURPLE, BOLD));
-            lines.add(Component.literal(format("scale factor: %.2f", scale)));
-            lines.add(Component.literal(format("local mouse coords: [%.2f, %.2f]", localX, localY)));
-
-            if (effectivePickingMode == PickingMode.PIXEL) {
-                lines.add(Component.literal(format("color under mouse: [%d, %d, %d]",
-                    underMouseColor[0] & 0xff,
-                    underMouseColor[1] & 0xff,
-                    underMouseColor[2] & 0xff)));
-            } else {
-                lines.add(Component.literal(format("expected color: [%d, %d, %d]",
-                    underMouseIndex >> 16 & 0xff,
-                    underMouseIndex >> 8 & 0xff,
-                    underMouseIndex & 0xff)));
+            if (draggingIndex != NONE) {
+                var pose = graphics.pose();
+                pose.pushPose();
+                pose.translate(
+                    Mth.clamp(localX + draggingOffX, draggingOffX, WIDTH + draggingOffX),
+                    Mth.clamp(localY + draggingOffY, draggingOffY, HEIGHT + draggingOffY),
+                    0
+                );
+                drawStack(graphics, storage.get(draggingIndex), true, false);
+                pose.popPose();
             }
 
-            if (underMouseIndex != NONE) {
-                lines.add(Component.literal(format("computed index: %d", underMouseIndex)));
-                lines.add(Component.literal(format("hovered stack pos: %.2f, %.2f", underMouse.getX(), underMouse.getY())));
+            graphics.disableScissor();
+
+            super.render(graphics, mouseX, mouseY, partialTicks);
+
+            var underMouse = storage.get(underMouseIndex);
+
+            if (debug && mouseInside) {
+                List<Component> lines = new ArrayList<>();
+
+                lines.add(Component.literal("debug:").withStyle(DARK_PURPLE, BOLD));
+                lines.add(Component.literal(format("scale factor: %.2f", scale)));
+                lines.add(Component.literal(format("local mouse coords: [%.2f, %.2f]", localX, localY)));
+
+                if (effectivePickingMode == PickingMode.PIXEL) {
+                    lines.add(Component.literal(format("color under mouse: [%d, %d, %d]",
+                        underMouseColor[0] & 0xff,
+                        underMouseColor[1] & 0xff,
+                        underMouseColor[2] & 0xff)));
+                } else {
+                    lines.add(Component.literal(format("expected color: [%d, %d, %d]",
+                        underMouseIndex >> 16 & 0xff,
+                        underMouseIndex >> 8 & 0xff,
+                        underMouseIndex & 0xff)));
+                }
+
+                if (underMouseIndex != NONE) {
+                    lines.add(Component.literal(format("computed index: %d", underMouseIndex)));
+                    lines.add(Component.literal(format("hovered stack pos: %.2f, %.2f", underMouse.getX(), underMouse.getY())));
+                }
+
+                graphics.renderComponentTooltip(font, lines, leftPos + 25, topPos + 168);
             }
 
-            graphics.renderComponentTooltip(font, lines, leftPos + 25, topPos + 98);
+            renderTooltip(graphics, mouseX, mouseY);
+
+            if (underMouseIndex == NONE || !container.getCarried().isEmpty()) {
+                return;
+            }
+
+            var ref = underMouse.getRef();
+            var tooltip = getTooltipFromItem(this.minecraft, ref);
+
+            if (underMouse.getCount().compareTo(BigInteger.ONE) > 0) {
+                tooltip.add(1, Component.translatable("gui.subpocket:it.quantity",
+                    hasShiftDown() ? underMouse.getCount().toString() :
+                        underMouse.getShortNumberString(Config.overflowType.get())));
+            }
+            var customFont = IClientItemExtensions.of(ref).getFont(ref, FontContext.TOOLTIP);
+            graphics.renderTooltip(customFont != null ? customFont : this.font, tooltip, ref.getTooltipImage(), mouseX + 12, mouseY);
+        } finally {
+            if (guiFitScale < 1.0F) {
+                graphics.pose().popPose();
+            }
         }
-
-        renderTooltip(graphics, mouseX, mouseY);
-
-        if (underMouseIndex == NONE || !container.getCarried().isEmpty()) {
-            return;
-        }
-
-        var ref = underMouse.getRef();
-        var tooltip = getTooltipFromItem(this.minecraft, ref);
-
-        if (underMouse.getCount().compareTo(BigInteger.ONE) > 0) {
-            tooltip.add(1, Component.translatable("gui.subpocket:it.quantity",
-                hasShiftDown() ? underMouse.getCount().toString() :
-                    underMouse.getShortNumberString(Config.overflowType.get())));
-        }
-        var customFont = IClientItemExtensions.of(ref).getFont(ref, FontContext.TOOLTIP);
-        graphics.renderTooltip(customFont != null ? customFont : this.font, tooltip, ref.getTooltipImage(), mouseX + 12, mouseY);
     }
 
     private void drawStack(GuiGraphics graphics, ISubpocketStack stack, boolean hovered, boolean translate) {
@@ -310,6 +338,10 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+        if (guiFitScale < 1.0F) {
+            mouseX /= guiFitScale;
+            mouseY /= guiFitScale;
+        }
         if (!mouseInside) {
             super.mouseClicked(mouseX, mouseY, mouseButton);
             return false;
@@ -326,6 +358,12 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int mouseButton, double dragX, double dragY) {
+        if (guiFitScale < 1.0F) {
+            mouseX /= guiFitScale;
+            mouseY /= guiFitScale;
+            dragX /= guiFitScale;
+            dragY /= guiFitScale;
+        }
         if (!mouseInside) {
             return super.mouseDragged(mouseX, mouseY, mouseButton, dragX, dragY);
         }
@@ -338,6 +376,10 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int mouseButton) {
+        if (guiFitScale < 1.0F) {
+            mouseX /= guiFitScale;
+            mouseY /= guiFitScale;
+        }
         if (didDrag) {
             var x = Mth.clamp(localX + draggingOffX, draggingOffX, WIDTH + draggingOffX);
             var y = Mth.clamp(localY + draggingOffY, draggingOffY, HEIGHT + draggingOffY);
@@ -363,6 +405,10 @@ public final class SubpocketScreen extends AbstractContainerScreen<SubpocketCont
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (guiFitScale < 1.0F) {
+            mouseX /= guiFitScale;
+            mouseY /= guiFitScale;
+        }
         if (scrollY == 0.0 || !mouseInside) {
             return false;
         }

@@ -32,7 +32,7 @@ import static net.minecraft.world.inventory.InventoryMenu.*;
 
 public final class SubpocketContainer extends AbstractContainerMenu {
 
-    public static final int WIDTH = 160, HEIGHT = 70;
+    public static final int WIDTH = 160, HEIGHT = 140;
 
     public static final DeferredRegister<MenuType<?>> CONTAINERS = DeferredRegister.create(Registries.MENU, MODID);
 
@@ -64,11 +64,11 @@ public final class SubpocketContainer extends AbstractContainerMenu {
         Network.syncToClient(player);
 
         for (var x = 0; x < 9; ++x) { // hotbar
-            addSlot(new Slot(playerInv, x, x * 18 + 35, 142));
+            addSlot(new Slot(playerInv, x, x * 18 + 35, 212));
         }
         for (var y = 0; y < 3; ++y) { // main inventory
             for (var x = 0; x < 9; ++x) {
-                addSlot(new Slot(playerInv, y * 9 + x + 9, x * 18 + 35, y * 18 + 84));
+                addSlot(new Slot(playerInv, y * 9 + x + 9, x * 18 + 35, y * 18 + 154));
             }
         }
         for (var k = 0; k < 4; ++k) { // armor slots
